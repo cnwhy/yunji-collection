@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "CORS 跨域跳板",
+  "version": "2.0",
+  "description": "动态配置允许跨域的发起方域名",
+  "permissions": [
+    "declarativeNetRequest",
+    "storage",
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}
