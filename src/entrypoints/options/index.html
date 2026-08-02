@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>跨域跳板配置</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <h2>跨域白名单域名配置</h2>
+  <p class="tip">提示：支持输入纯域名（自动适配 http/https）或带协议的完整地址。例如：abc.com、http://localhost:3001</p>
+  <div class="input-group">
+    <input type="text" id="domainInput" placeholder="例如: abc.com" />
+    <button id="addBtn">添加域名</button>
+  </div>
+
+  <ul id="domainList"></ul>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

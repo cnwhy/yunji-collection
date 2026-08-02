@@ -1,0 +1,144 @@
+body {
+  width: 260px;
+  margin: 0;
+  padding: 15px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #f9f9f9;
+  color: #333;
+}
+
+.card {
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.domain-info {
+  font-size: 12px;
+  color: #666;
+  word-break: break-all;
+  margin-bottom: 12px;
+  background: #f1f1f1;
+  padding: 6px;
+  border-radius: 4px;
+}
+
+.status {
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+}
+
+.status.active {
+  color: #52c41a;
+}
+
+.status.inactive {
+  color: #faad14;
+}
+
+.status.system {
+  color: #ff4d4f;
+}
+
+button {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-add {
+  background-color: #1890ff;
+  color: white;
+}
+
+.btn-add:hover {
+  background-color: #40a9ff;
+}
+
+.btn-remove {
+  background-color: #ff4d4f;
+  color: white;
+}
+
+.btn-remove:hover {
+  background-color: #ff7875;
+}
+
+.footer {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.footer a {
+  font-size: 11px;
+  color: #1890ff;
+  text-decoration: none;
+}
+
+/* 深色模式：高对比度配色 */
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #1a1a1a;
+    color: #f0f0f0;
+  }
+
+  .card {
+    background: #262626;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  h3 {
+    color: #f0f0f0;
+  }
+
+  .domain-info {
+    color: #d0d0d0;
+    background: #333333;
+  }
+
+  .status.active {
+    color: #7fe08a;
+  }
+
+  .status.inactive {
+    color: #ffc53d;
+  }
+
+  .status.system {
+    color: #ff7a6e;
+  }
+
+  .btn-add {
+    background-color: #1890ff;
+  }
+
+  .btn-add:hover {
+    background-color: #40a9ff;
+  }
+
+  .btn-remove {
+    background-color: #ff4d4f;
+  }
+
+  .btn-remove:hover {
+    background-color: #ff7875;
+  }
+
+  .footer a {
+    color: #40a9ff;
+  }
+}

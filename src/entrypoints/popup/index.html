@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>CORS 跨域跳板</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="card">
+    <h3>当前网页域名：</h3>
+    <div id="currentDomain" class="domain-info">正在获取...</div>
+
+    <div id="statusText" class="status inactive">正在检测状态...</div>
+
+    <button id="actionBtn" style="display: none;"></button>
+  </div>
+
+  <div class="footer">
+    <a href="#" id="openOptions">管理所有白名单</a>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
