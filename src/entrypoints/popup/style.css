@@ -1,5 +1,5 @@
 body {
-  width: 260px;
+  width: 300px;
   margin: 0;
   padding: 15px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -89,6 +89,243 @@ button {
   text-decoration: none;
 }
 
+/* 云笈收藏 */
+.yunji-card {
+  margin-top: 10px;
+}
+
+.yunji-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.yunji-header h3 {
+  margin: 0;
+}
+
+.yunji-origin {
+  font-size: 11px;
+  color: #722ed1;
+  word-break: break-all;
+  text-decoration: none;
+}
+
+.yunji-origin:hover {
+  text-decoration: underline;
+}
+
+.yunji-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.yunji-header-right .yunji-origin {
+  flex: 1;
+  min-width: 0;
+}
+
+.yunji-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #722ed1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.yunji-icon:hover {
+  text-decoration: underline;
+}
+
+.yunji-status {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 10px;
+  word-break: break-all;
+}
+
+.yunji-status.ok {
+  color: #52c41a;
+}
+
+.yunji-status.warn {
+  color: #faad14;
+}
+
+.btn-yunji {
+  background-color: #722ed1;
+  color: white;
+}
+
+.btn-yunji:hover {
+  background-color: #9254de;
+}
+
+.btn-yunji:disabled,
+.btn-plain:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+#yunjiStartBtn {
+  margin-top: 26px;
+}
+
+.yunji-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.yunji-form-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: bold;
+  color: #333;
+}
+
+.yunji-label {
+  font-size: 12px;
+  color: #666;
+}
+
+.yunji-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.yunji-field > .yunji-label {
+  flex-shrink: 0;
+  width: 52px;
+}
+
+.yunji-field > input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.yunji-form input,
+.yunji-space-row select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+}
+
+.yunji-space-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.yunji-space-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0;
+  background-color: #f0f0f0;
+  color: #999;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.icon-btn:hover {
+  background-color: #e5e5e5;
+  color: #666;
+}
+
+.yunji-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.yunji-links a {
+  color: #722ed1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.yunji-links a:hover {
+  text-decoration: underline;
+}
+
+.yunji-links a.on {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.yunji-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #999;
+}
+
+.yunji-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.yunji-actions button {
+  width: auto;
+  flex: 1;
+  padding: 6px;
+  font-size: 12px;
+}
+
+.btn-plain {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.btn-plain:hover {
+  background-color: #e5e5e5;
+}
+
+.yunji-message {
+  margin: 8px 0 0;
+  font-size: 12px;
+  min-height: 16px;
+  color: #666;
+}
+
+.yunji-message.success {
+  color: #52c41a;
+}
+
+.yunji-message.error {
+  color: #ff4d4f;
+}
+
+.yunji-inline-link {
+  color: #722ed1;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.yunji-inline-link:hover {
+  color: #9254de;
+}
+
 /* 深色模式：高对比度配色 */
 @media (prefers-color-scheme: dark) {
   body {
@@ -140,5 +377,87 @@ button {
 
   .footer a {
     color: #40a9ff;
+  }
+
+  .yunji-status {
+    color: #d0d0d0;
+  }
+
+  .yunji-status.ok {
+    color: #7fe08a;
+  }
+
+  .yunji-status.warn {
+    color: #ffc53d;
+  }
+
+  .yunji-origin {
+    color: #b37feb;
+  }
+
+  .yunji-icon {
+    color: #b37feb;
+  }
+
+  .yunji-form-title {
+    color: #f0f0f0;
+  }
+
+  .yunji-label {
+    color: #d0d0d0;
+  }
+
+  .yunji-form input,
+  .yunji-space-row select {
+    border-color: #555;
+    background: #333;
+    color: #f0f0f0;
+  }
+
+  .icon-btn {
+    background-color: #333;
+    color: #8c8c8c;
+  }
+
+  .icon-btn:hover {
+    background-color: #404040;
+    color: #d0d0d0;
+  }
+
+  .yunji-links a {
+    color: #b37feb;
+  }
+
+  .yunji-hint {
+    color: #8c8c8c;
+  }
+
+  .btn-plain {
+    background-color: #333;
+    color: #d9d9d9;
+  }
+
+  .btn-plain:hover {
+    background-color: #404040;
+  }
+
+  .yunji-message {
+    color: #9a9a9a;
+  }
+
+  .yunji-message.success {
+    color: #7fe08a;
+  }
+
+  .yunji-message.error {
+    color: #ff7a6e;
+  }
+
+  .yunji-inline-link {
+    color: #b37feb;
+  }
+
+  .yunji-inline-link:hover {
+    color: #d3adf7;
   }
 }

@@ -17,7 +17,16 @@ export default defineConfig({
       'scripting',
       'contextMenus',
       'offscreen',
+      'cookies',
     ],
     host_permissions: ['<all_urls>'],
+    commands: {
+      _execute_action: {
+        suggested_key: {
+          default: 'Ctrl+Y',
+          mac: 'Command+Y',
+        },
+      },
+    },
   },
 });
