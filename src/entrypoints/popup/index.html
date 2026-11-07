@@ -9,82 +9,66 @@
   <div class="card yunji-card">
     <div class="yunji-header">
       <h3>云笈</h3>
-      <div class="yunji-header-right">
-        <a id="yunjiOrigin" class="yunji-origin" href="#" target="_blank" rel="noopener"></a>
-        <a href="#" id="yunjiChangeBaseUrlIcon" class="yunji-icon" title="更换云笈地址，不同地址的凭证分别保留" style="display: none;">✎</a>
-        <a href="#" id="yunjiClearBindIcon" class="yunji-icon" title="清除云笈绑定、当前地址下的空间凭证及跨域放行" style="display: none;">✕</a>
-      </div>
+      <a href="#" id="yunjiAddInstanceBtn" class="yunji-icon" title="添加新的云笈实例，不同地址的凭证分别保存">＋ 添加实例</a>
     </div>
 
-    <div id="yunjiLinks" class="yunji-links" style="display: none;">
-      <a href="#" id="yunjiCrossToggleLink" title="开启后，才能正常在浏览器端获取站点图标（放开云笈站点跨域限制）">放开跨域</a>
-      <a href="#" id="yunjiAddSpaceLink" title="添加空间：输入空间ID和密码登录">＋ 添加空间</a>
-      <a href="#" id="yunjiSyncLink" title="把浏览器当前登录的云笈会话同步为空间凭证">⇄ 同步浏览器登录</a>
-    </div>
+    <!-- 实例卡片列表：每张卡片对应一个云笈站点 -->
+    <div id="yunjiInstanceList" class="yunji-instance-list"></div>
 
-    <div id="yunjiStatus" class="yunji-status">正在检查...</div>
-
+    <!-- 添加实例表单 -->
     <div id="yunjiConfigForm" class="yunji-form" style="display: none;">
+      <div class="yunji-form-title">添加云笈实例</div>
       <label class="yunji-label" for="yunjiBaseUrlInput">云笈地址</label>
       <input id="yunjiBaseUrlInput" type="text" placeholder="例如: https://nav.example.com" />
+      <p class="yunji-hint">可直接打开云笈站点自动识别；地址相同的实例会切换到已有卡片。</p>
       <div class="yunji-actions">
-        <button id="yunjiCancelBaseUrlBtn" class="btn-plain" style="display: none;">取消</button>
+        <button id="yunjiCancelBaseUrlBtn" class="btn-plain">取消</button>
         <button id="yunjiBindBtn" class="btn-yunji" style="display: none;">绑定云笈</button>
         <button id="yunjiSaveBaseUrlBtn" class="btn-yunji">保存地址</button>
       </div>
     </div>
 
-    <div id="yunjiPanel" style="display: none;">
-      <div class="yunji-space-row">
-        <select id="yunjiSpaceSelect" aria-label="保存到空间"></select>
-        <button id="yunjiRemoveSpaceBtn" class="icon-btn" title="删除当前空间凭证" style="display: none;">×</button>
+    <!-- 空间登录表单（作用于最近一次操作的卡片） -->
+    <div id="yunjiSpaceForm" class="yunji-form" style="display: none;">
+      <div id="yunjiSpaceFormTitle" class="yunji-form-title">添加空间</div>
+      <label class="yunji-label" for="yunjiUsername">空间ID</label>
+      <input id="yunjiUsername" type="text" autocomplete="username" />
+      <label class="yunji-label" for="yunjiPassword">密码</label>
+      <input id="yunjiPassword" type="password" autocomplete="current-password" />
+      <p class="yunji-hint">密码只用于换取登录凭证，不会保存在插件里。</p>
+      <div class="yunji-actions">
+        <button id="yunjiSpaceCancelBtn" class="btn-plain">取消</button>
+        <button id="yunjiSpaceSubmitBtn" class="btn-yunji">登录并保存</button>
+      </div>
+    </div>
+
+    <!-- 自定义收藏表单 -->
+    <div id="yunjiForm" class="yunji-form" style="display: none;">
+      <div class="yunji-field">
+        <label class="yunji-label" for="yunjiName">名称</label>
+        <input id="yunjiName" type="text" maxlength="100" />
       </div>
 
-      <div id="yunjiSpaceForm" class="yunji-form" style="display: none;">
-        <div id="yunjiSpaceFormTitle" class="yunji-form-title">添加空间</div>
-        <label class="yunji-label" for="yunjiUsername">空间ID</label>
-        <input id="yunjiUsername" type="text" autocomplete="username" />
-        <label class="yunji-label" for="yunjiPassword">密码</label>
-        <input id="yunjiPassword" type="password" autocomplete="current-password" />
-        <p class="yunji-hint">密码只用于换取登录凭证，不会保存在插件里。</p>
-        <div class="yunji-actions">
-          <button id="yunjiSpaceCancelBtn" class="btn-plain">取消</button>
-          <button id="yunjiSpaceSubmitBtn" class="btn-yunji">登录并保存</button>
-        </div>
+      <div class="yunji-field">
+        <label class="yunji-label" for="yunjiUrl">网址</label>
+        <input id="yunjiUrl" type="text" placeholder="https://…" />
       </div>
 
-      <div id="yunjiCollectRow" class="yunji-collect-row" style="display: none;">
-        <button id="yunjiQuickAddBtn" class="btn-yunji">一键添加</button>
-        <button id="yunjiStartBtn" class="btn-yunji">收藏到云笈</button>
+      <div class="yunji-field">
+        <label class="yunji-label" for="yunjiCategory">分类</label>
+        <select id="yunjiCategory" aria-label="收藏分类"></select>
       </div>
 
-      <div id="yunjiForm" class="yunji-form" style="display: none;">
-        <div class="yunji-field">
-          <label class="yunji-label" for="yunjiName">名称</label>
-          <input id="yunjiName" type="text" maxlength="100" />
-        </div>
+      <div class="yunji-field">
+        <label class="yunji-label" for="yunjiEnvironment">环境</label>
+        <select id="yunjiEnvironment" aria-label="收藏环境"></select>
+      </div>
 
-        <div class="yunji-field">
-          <label class="yunji-label" for="yunjiUrl">网址</label>
-          <input id="yunjiUrl" type="text" placeholder="https://…" />
-        </div>
+      <p class="yunji-hint">默认「浏览器收藏」分类 + 第一个环境，可自行修改。</p>
 
-        <div class="yunji-field">
-          <label class="yunji-label" for="yunjiCategory">分类</label>
-          <select id="yunjiCategory" aria-label="收藏分类"></select>
-        </div>
-
-        <div class="yunji-field">
-          <label class="yunji-label" for="yunjiEnvironment">环境</label>
-          <select id="yunjiEnvironment" aria-label="收藏环境"></select>
-        </div>
-
-        <p class="yunji-hint">默认「浏览器收藏」分类 + 第一个环境，可自行修改。</p>
-
-        <div class="yunji-actions">
-          <button id="yunjiCancelBtn" class="btn-plain">取消</button>
-          <button id="yunjiSubmitBtn" class="btn-yunji">确认添加</button>
-        </div>
+      <div class="yunji-actions">
+        <button id="yunjiCancelBtn" class="btn-plain">取消</button>
+        <button id="yunjiSubmitBtn" class="btn-yunji">确认添加</button>
       </div>
     </div>
 

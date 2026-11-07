@@ -35,7 +35,6 @@ export async function updateNetRules(domains: string[]): Promise<void> {
   }
 
   const newRules: DnrRule[] = domains.map((pureDomain, index) => {
-    console.log(pureDomain);
     return {
       id: index + 1,
       priority: 1,

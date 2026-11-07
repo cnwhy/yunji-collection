@@ -41,8 +41,16 @@ interface OriginBucket {
 }
 
 interface YunjiConfig {
+  /** 当前选中实例的地址；origins 中的桶才是实例本体 */
   baseUrl: string;
   origins: Record<string, OriginBucket>;
+}
+
+export interface YunjiInstance {
+  baseUrl: string;
+  siteName: string;
+  spaces: YunjiSpace[];
+  selectedUsername: string | null;
 }
 
 export interface YunjiCategory {
@@ -126,9 +134,47 @@ async function writeConfig(config: YunjiConfig): Promise<void> {
   await chrome.storage.local.remove(LEGACY_BASE_URL_KEY);
 }
 
-function bucketOf(config: YunjiConfig): OriginBucket {
-  if (!config.baseUrl) return { spaces: [], selectedUsername: null };
-  return config.origins[config.baseUrl] || { spaces: [], selectedUsername: null };
+function bucketOf(config: YunjiConfig, baseUrl: string): OriginBucket {
+  if (!baseUrl) return { spaces: [], selectedUsername: null };
+  return config.origins[baseUrl] || { spaces: [], selectedUsername: null };
+}
+
+/** 全部已保存的云笈实例（按地址分桶），空地址的空桶也算一个实例 */
+export async function listYunjiInstances(): Promise<YunjiInstance[]> {
+  const config = await readConfig();
+  const urls = new Set<string>();
+  for (const key of Object.keys(config.origins)) urls.add(key);
+  if (config.baseUrl) urls.add(config.baseUrl);
+
+  return Array.from(urls).map((baseUrl) => {
+    const bucket = bucketOf(config, baseUrl);
+    const first = bucket.spaces[0];
+    return {
+      baseUrl,
+      siteName: first?.siteName || baseUrl,
+      spaces: bucket.spaces,
+      selectedUsername: bucket.selectedUsername,
+    };
+  });
+}
+
+export async function selectYunjiInstance(baseUrl: string): Promise<void> {
+  const config = await readConfig();
+  if (config.baseUrl !== baseUrl && config.origins[baseUrl] === undefined) {
+    throw new YunjiError('该云笈实例不存在');
+  }
+  config.baseUrl = baseUrl;
+  await writeConfig(config);
+}
+
+/** 删除一个云笈实例；若删的是当前选中实例，回落到剩余第一个 */
+export async function removeYunjiInstance(baseUrl: string): Promise<void> {
+  const config = await readConfig();
+  delete config.origins[baseUrl];
+  if (config.baseUrl === baseUrl) {
+    config.baseUrl = Object.keys(config.origins)[0] ?? '';
+  }
+  await writeConfig(config);
 }
 
 export async function getYunjiBaseUrl(): Promise<string> {
@@ -138,40 +184,22 @@ export async function getYunjiBaseUrl(): Promise<string> {
 export async function setYunjiBaseUrl(input: string): Promise<string> {
   const baseUrl = normalizeYunjiBaseUrl(input);
   const config = await readConfig();
+  config.origins[baseUrl] ??= { spaces: [], selectedUsername: null };
   config.baseUrl = baseUrl;
   await writeConfig(config);
   return baseUrl;
 }
 
-/** 清除云笈绑定：清空当前地址及其空间凭证，其他地址的凭证保留 */
-export async function clearYunjiBinding(): Promise<void> {
-  const config = await readConfig();
-  if (config.baseUrl) {
-    delete config.origins[config.baseUrl];
-  }
-  config.baseUrl = '';
-  await writeConfig(config);
-}
-
-export async function getYunjiState(): Promise<YunjiOriginState> {
-  const config = await readConfig();
-  const bucket = bucketOf(config);
-  return {
-    baseUrl: config.baseUrl,
-    spaces: bucket.spaces,
-    selectedUsername: bucket.selectedUsername,
-  };
-}
-
 /** 新增或更新某个空间的 token（登录/同步后调用） */
 export async function upsertYunjiSpace(
+  baseUrl: string,
   identity: YunjiIdentity & { sessionId: string },
   options: { select?: boolean } = {}
 ): Promise<void> {
   const config = await readConfig();
-  if (!config.baseUrl) throw new YunjiError('尚未配置云笈地址');
+  if (!baseUrl) throw new YunjiError('尚未配置云笈地址');
 
-  const bucket = bucketOf(config);
+  const bucket = bucketOf(config, baseUrl);
   const existing = bucket.spaces.find((item) => item.username === identity.username);
   if (existing) {
     existing.sessionId = identity.sessionId;
@@ -195,43 +223,41 @@ export async function upsertYunjiSpace(
     bucket.selectedUsername = bucket.spaces[0]?.username ?? null;
   }
 
-  config.origins[config.baseUrl] = bucket;
+  config.origins[baseUrl] = bucket;
   await writeConfig(config);
 }
 
-export async function selectYunjiSpace(username: string): Promise<void> {
+export async function selectYunjiSpace(baseUrl: string, username: string): Promise<void> {
   const config = await readConfig();
-  if (!config.baseUrl) return;
-  const bucket = bucketOf(config);
+  const bucket = bucketOf(config, baseUrl);
   if (!bucket.spaces.some((item) => item.username === username)) return;
   bucket.selectedUsername = username;
-  config.origins[config.baseUrl] = bucket;
+  config.origins[baseUrl] = bucket;
   await writeConfig(config);
 }
 
-export async function removeYunjiSpace(username: string): Promise<void> {
+export async function removeYunjiSpace(baseUrl: string, username: string): Promise<void> {
   const config = await readConfig();
-  if (!config.baseUrl) return;
-  const bucket = bucketOf(config);
+  const bucket = bucketOf(config, baseUrl);
   bucket.spaces = bucket.spaces.filter((item) => item.username !== username);
   if (bucket.selectedUsername === username) {
     bucket.selectedUsername = bucket.spaces[0]?.username ?? null;
   }
-  config.origins[config.baseUrl] = bucket;
+  config.origins[baseUrl] = bucket;
   await writeConfig(config);
 }
 
 export async function patchYunjiSpace(
+  baseUrl: string,
   username: string,
   patch: Partial<Pick<YunjiSpace, 'siteName' | 'expired'>>
 ): Promise<void> {
   const config = await readConfig();
-  if (!config.baseUrl) return;
-  const bucket = bucketOf(config);
+  const bucket = bucketOf(config, baseUrl);
   const space = bucket.spaces.find((item) => item.username === username);
   if (!space) return;
   Object.assign(space, patch);
-  config.origins[config.baseUrl] = bucket;
+  config.origins[baseUrl] = bucket;
   await writeConfig(config);
 }
 
