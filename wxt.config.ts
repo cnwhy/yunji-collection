@@ -6,17 +6,14 @@ import pkg from './package.json';
 export default defineConfig({
   srcDir: 'src',
   manifest: {
-    name: 'CORS 跨域跳板',
-    description: '动态配置允许跨域的发起方域名',
+    name: '云笈收藏助手',
+    description: '一键收藏网页到云笈导航站',
     version: pkg.version,
     permissions: [
       'declarativeNetRequest',
+      'declarativeNetRequestFeedback',
       'storage',
       'tabs',
-      'activeTab',
-      'scripting',
-      'contextMenus',
-      'offscreen',
       'cookies',
     ],
     host_permissions: ['<all_urls>'],

@@ -1,8 +1,8 @@
 {
-  "name": "cors-bypass-extension",
-  "description": "动态配置允许跨域的发起方域名",
+  "name": "yunji-collection",
+  "description": "一键收藏网页到云笈导航站",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -20,10 +20,5 @@
     "vite": "^8.1.5",
     "web-ext": "^10.5.0",
     "wxt": "^0.21.3"
-  },
-  "dependencies": {
-    "jsqr": "^1.4.0",
-    "qr-decode": "^0.0.6",
-    "qr-scanner": "^1.4.2"
   }
 }

@@ -2,26 +2,17 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <title>CORS 跨域跳板</title>
+  <title>云笈收藏助手</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div class="card">
-    <h3>当前网页域名：</h3>
-    <div id="currentDomain" class="domain-info">正在获取...</div>
-
-    <div id="statusText" class="status inactive">正在检测状态...</div>
-
-    <button id="actionBtn" style="display: none;"></button>
-  </div>
-
   <div class="card yunji-card">
     <div class="yunji-header">
       <h3>云笈</h3>
       <div class="yunji-header-right">
         <a id="yunjiOrigin" class="yunji-origin" href="#" target="_blank" rel="noopener"></a>
         <a href="#" id="yunjiChangeBaseUrlIcon" class="yunji-icon" title="更换云笈地址，不同地址的凭证分别保留" style="display: none;">✎</a>
-        <a href="#" id="yunjiClearBindIcon" class="yunji-icon" title="清除云笈绑定及当前地址下的空间凭证" style="display: none;">✕</a>
+        <a href="#" id="yunjiClearBindIcon" class="yunji-icon" title="清除云笈绑定、当前地址下的空间凭证及跨域放行" style="display: none;">✕</a>
       </div>
     </div>
 
@@ -62,7 +53,10 @@
         </div>
       </div>
 
-      <button id="yunjiStartBtn" class="btn-yunji" style="display: none;">收藏到云笈</button>
+      <div id="yunjiCollectRow" class="yunji-collect-row" style="display: none;">
+        <button id="yunjiQuickAddBtn" class="btn-yunji">一键添加</button>
+        <button id="yunjiStartBtn" class="btn-yunji">收藏到云笈</button>
+      </div>
 
       <div id="yunjiForm" class="yunji-form" style="display: none;">
         <div class="yunji-field">
@@ -75,7 +69,17 @@
           <input id="yunjiUrl" type="text" placeholder="https://…" />
         </div>
 
-        <p class="yunji-hint">将加入「浏览器收藏」分类，环境使用云笈中排序第一个。</p>
+        <div class="yunji-field">
+          <label class="yunji-label" for="yunjiCategory">分类</label>
+          <select id="yunjiCategory" aria-label="收藏分类"></select>
+        </div>
+
+        <div class="yunji-field">
+          <label class="yunji-label" for="yunjiEnvironment">环境</label>
+          <select id="yunjiEnvironment" aria-label="收藏环境"></select>
+        </div>
+
+        <p class="yunji-hint">默认「浏览器收藏」分类 + 第一个环境，可自行修改。</p>
 
         <div class="yunji-actions">
           <button id="yunjiCancelBtn" class="btn-plain">取消</button>
@@ -85,10 +89,6 @@
     </div>
 
     <p id="yunjiMessage" class="yunji-message"></p>
-  </div>
-
-  <div class="footer">
-    <a href="#" id="openOptions">管理所有白名单</a>
   </div>
 
   <script type="module" src="./main.ts"></script>

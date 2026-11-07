@@ -4,7 +4,7 @@
 
 const CONFIG_KEY = 'yunjiConfig';
 const LEGACY_BASE_URL_KEY = 'yunjiBaseUrl';
-const BROWSER_CATEGORY_NAME = '浏览器收藏';
+export const BROWSER_CATEGORY_NAME = '浏览器收藏';
 
 export class YunjiError extends Error {
   constructor(message: string) {
@@ -269,6 +269,24 @@ export async function detectYunjiOrigin(pageUrl: string): Promise<string | null>
   }
 }
 
+const REQUEST_TIMEOUT_MS = 10000;
+
+/** 带超时的 fetch：超时或网络失败统一抛「无法连接云笈」 */
+async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new YunjiError('连接云笈超时，请检查地址和网络');
+    }
+    throw new YunjiError('无法连接云笈，请检查地址和网络');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 interface YunjiErrorBody {
   message?: string;
   error?: string;
@@ -292,9 +310,13 @@ async function requestWithToken<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}${path}`, { ...init, credentials: 'omit', headers });
-  } catch {
-    throw new YunjiError('无法连接云笈，请检查地址和网络');
+    response = await fetchWithTimeout(`${baseUrl}${path}`, {
+      ...init,
+      credentials: 'omit',
+      headers,
+    });
+  } catch (error) {
+    throw error instanceof YunjiError ? error : new YunjiError('无法连接云笈，请检查地址和网络');
   }
 
   if (!response.ok) throw await parseError(response);
@@ -337,14 +359,14 @@ export async function loginToYunji(
 ): Promise<YunjiIdentity & { sessionId: string }> {
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/api/auth/token`, {
+    response = await fetchWithTimeout(`${baseUrl}/api/auth/token`, {
       method: 'POST',
       credentials: 'omit',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: username.trim(), password, keepLoggedIn: true }),
     });
-  } catch {
-    throw new YunjiError('无法连接云笈，请检查地址和网络');
+  } catch (error) {
+    throw error instanceof YunjiError ? error : new YunjiError('无法连接云笈，请检查地址和网络');
   }
 
   if (!response.ok) throw await parseError(response);
@@ -389,13 +411,16 @@ export async function getYunjiSites(baseUrl: string, sessionId: string): Promise
   return requestWithToken<YunjiSite[]>(baseUrl, sessionId, '/api/sites');
 }
 
+export async function getYunjiCategories(
+  baseUrl: string,
+  sessionId: string
+): Promise<YunjiCategory[]> {
+  return requestWithToken<YunjiCategory[]>(baseUrl, sessionId, '/api/categories');
+}
+
 /** 找到（或自动创建）「浏览器收藏」分类 */
 async function getOrCreateBrowserCategoryId(baseUrl: string, sessionId: string): Promise<string> {
-  const categories = await requestWithToken<YunjiCategory[]>(
-    baseUrl,
-    sessionId,
-    '/api/categories'
-  );
+  const categories = await getYunjiCategories(baseUrl, sessionId);
   const existing = categories.find((item) => item.name === BROWSER_CATEGORY_NAME);
   if (existing) return existing.id;
 
@@ -416,7 +441,7 @@ async function getDefaultEnvironment(
   if (environments.length === 0) {
     const created = await requestWithToken<{ id: string }>(baseUrl, sessionId, '/api/environments', {
       method: 'POST',
-      body: JSON.stringify({ name: '默认', sort_order: 100, color: '#3b82f6' }),
+      body: JSON.stringify({ name: '默认', sort_order: 100, color: '#2ea6fc' }),
     });
     environments = await getYunjiEnvironments(baseUrl, sessionId);
     const fresh = environments.find((env) => env.id === created.id);
@@ -436,12 +461,12 @@ async function findSiteByUrl(
   return sites.find((site) => site.site_urls?.some((item) => item.url === url)) ?? null;
 }
 
-/** 优先使用标签页的 favicon；取不到时回退到站点根目录的 favicon.ico */
+/** 优先使用标签页的 favicon；http(s) 页面取不到时回退到站点根目录的 favicon.ico */
 export function resolveTabIcon(tab: chrome.tabs.Tab): string {
   const favicon = tab.favIconUrl?.trim() ?? '';
   if (/^(https?:|data:)/i.test(favicon)) return favicon;
 
-  if (tab.url) {
+  if (tab.url && /^https?:\/\//i.test(tab.url)) {
     try {
       return `${new URL(tab.url).origin}/favicon.ico`;
     } catch {
@@ -467,7 +492,8 @@ export function resolveTabName(tab: chrome.tabs.Tab): string {
 
 /**
  * 把标签页收藏到指定空间：
- * 名称与网址由调用方传入（可在弹窗中二次编辑），自动写入「浏览器收藏」分类 + 第一个环境。
+ * 名称与网址由调用方传入（可在弹窗中二次编辑）；不指定分类/环境时，
+ * 自动写入「浏览器收藏」分类 + 云笈第一个环境（无环境时自动创建默认）。
  * 开头先校验 token，避免 token 失效时被匿名公开空间兜底而读到错误数据。
  */
 export async function addTabToYunji(
@@ -475,16 +501,17 @@ export async function addTabToYunji(
   space: YunjiSpace,
   tab: chrome.tabs.Tab,
   name: string,
-  url: string
+  url: string,
+  options: { categoryId?: string; environmentId?: string } = {}
 ): Promise<AddSiteResult> {
   const targetUrl = url.trim();
-  if (!/^https?:\/\//i.test(targetUrl)) {
-    throw new YunjiError('请输入合法的网址（需以 http/https 开头）');
+  if (!targetUrl) {
+    throw new YunjiError('网址不能为空');
   }
   try {
     new URL(targetUrl);
   } catch {
-    throw new YunjiError('网址格式不正确');
+    throw new YunjiError('网址格式不正确，请输入完整地址（如 https://…、chrome://…）');
   }
 
   const siteName = name.trim();
@@ -495,8 +522,19 @@ export async function addTabToYunji(
   const existing = await findSiteByUrl(baseUrl, space.sessionId, targetUrl);
   if (existing) throw new YunjiError(`该网址已收藏到云笈：${existing.name}`);
 
-  const categoryId = await getOrCreateBrowserCategoryId(baseUrl, space.sessionId);
-  const environment = await getDefaultEnvironment(baseUrl, space.sessionId);
+  const categoryId =
+    options.categoryId ||
+    (await getOrCreateBrowserCategoryId(baseUrl, space.sessionId));
+
+  let environment: YunjiEnvironment;
+  if (options.environmentId) {
+    const environments = await getYunjiEnvironments(baseUrl, space.sessionId);
+    const found = environments.find((env) => env.id === options.environmentId);
+    if (!found) throw new YunjiError('所选环境不存在，请刷新后重试');
+    environment = found;
+  } else {
+    environment = await getDefaultEnvironment(baseUrl, space.sessionId);
+  }
   const icon = resolveTabIcon(tab);
 
   await requestWithToken<{ id: string }>(baseUrl, space.sessionId, '/api/sites', {

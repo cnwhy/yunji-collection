@@ -20,36 +20,6 @@ h3 {
   color: #333;
 }
 
-.domain-info {
-  font-size: 12px;
-  color: #666;
-  word-break: break-all;
-  margin-bottom: 12px;
-  background: #f1f1f1;
-  padding: 6px;
-  border-radius: 4px;
-}
-
-.status {
-  font-size: 13px;
-  font-weight: bold;
-  margin-bottom: 15px;
-  display: flex;
-  align-items: center;
-}
-
-.status.active {
-  color: #52c41a;
-}
-
-.status.inactive {
-  color: #faad14;
-}
-
-.status.system {
-  color: #ff4d4f;
-}
-
 button {
   width: 100%;
   padding: 8px;
@@ -60,40 +30,7 @@ button {
   transition: background 0.2s;
 }
 
-.btn-add {
-  background-color: #1890ff;
-  color: white;
-}
-
-.btn-add:hover {
-  background-color: #40a9ff;
-}
-
-.btn-remove {
-  background-color: #ff4d4f;
-  color: white;
-}
-
-.btn-remove:hover {
-  background-color: #ff7875;
-}
-
-.footer {
-  margin-top: 10px;
-  text-align: center;
-}
-
-.footer a {
-  font-size: 11px;
-  color: #1890ff;
-  text-decoration: none;
-}
-
 /* 云笈收藏 */
-.yunji-card {
-  margin-top: 10px;
-}
-
 .yunji-header {
   display: flex;
   justify-content: space-between;
@@ -107,7 +44,7 @@ button {
 
 .yunji-origin {
   font-size: 11px;
-  color: #722ed1;
+  color: #2ea6fc;
   word-break: break-all;
   text-decoration: none;
 }
@@ -131,7 +68,7 @@ button {
 .yunji-icon {
   flex-shrink: 0;
   font-size: 12px;
-  color: #722ed1;
+  color: #2ea6fc;
   text-decoration: none;
   cursor: pointer;
 }
@@ -156,12 +93,12 @@ button {
 }
 
 .btn-yunji {
-  background-color: #722ed1;
+  background-color: #2ea6fc;
   color: white;
 }
 
 .btn-yunji:hover {
-  background-color: #9254de;
+  background-color: #5ab5fd;
 }
 
 .btn-yunji:disabled,
@@ -170,8 +107,15 @@ button {
   cursor: default;
 }
 
-#yunjiStartBtn {
+.yunji-collect-row {
+  display: flex;
+  gap: 8px;
   margin-top: 26px;
+}
+
+.yunji-collect-row button {
+  width: auto;
+  flex: 1;
 }
 
 .yunji-form {
@@ -203,13 +147,15 @@ button {
   width: 52px;
 }
 
-.yunji-field > input {
+.yunji-field > input,
+.yunji-field > select {
   flex: 1;
   min-width: 0;
   width: auto;
 }
 
 .yunji-form input,
+.yunji-form select,
 .yunji-space-row select {
   width: 100%;
   box-sizing: border-box;
@@ -260,7 +206,7 @@ button {
 }
 
 .yunji-links a {
-  color: #722ed1;
+  color: #2ea6fc;
   text-decoration: none;
   cursor: pointer;
 }
@@ -317,13 +263,13 @@ button {
 }
 
 .yunji-inline-link {
-  color: #722ed1;
+  color: #2ea6fc;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .yunji-inline-link:hover {
-  color: #9254de;
+  color: #5ab5fd;
 }
 
 /* 深色模式：高对比度配色 */
@@ -342,43 +288,6 @@ button {
     color: #f0f0f0;
   }
 
-  .domain-info {
-    color: #d0d0d0;
-    background: #333333;
-  }
-
-  .status.active {
-    color: #7fe08a;
-  }
-
-  .status.inactive {
-    color: #ffc53d;
-  }
-
-  .status.system {
-    color: #ff7a6e;
-  }
-
-  .btn-add {
-    background-color: #1890ff;
-  }
-
-  .btn-add:hover {
-    background-color: #40a9ff;
-  }
-
-  .btn-remove {
-    background-color: #ff4d4f;
-  }
-
-  .btn-remove:hover {
-    background-color: #ff7875;
-  }
-
-  .footer a {
-    color: #40a9ff;
-  }
-
   .yunji-status {
     color: #d0d0d0;
   }
@@ -392,11 +301,11 @@ button {
   }
 
   .yunji-origin {
-    color: #b37feb;
+    color: #6ec4ff;
   }
 
   .yunji-icon {
-    color: #b37feb;
+    color: #6ec4ff;
   }
 
   .yunji-form-title {
@@ -408,6 +317,7 @@ button {
   }
 
   .yunji-form input,
+  .yunji-form select,
   .yunji-space-row select {
     border-color: #555;
     background: #333;
@@ -425,7 +335,7 @@ button {
   }
 
   .yunji-links a {
-    color: #b37feb;
+    color: #6ec4ff;
   }
 
   .yunji-hint {
@@ -454,10 +364,10 @@ button {
   }
 
   .yunji-inline-link {
-    color: #b37feb;
+    color: #6ec4ff;
   }
 
   .yunji-inline-link:hover {
-    color: #d3adf7;
+    color: #9bd8ff;
   }
 }
