@@ -1,85 +1,98 @@
 import { getDomains } from '../../utils/storage';
-import { decodeQRCodeFromImageUrl } from './qr-decode';
 
 export default defineBackground(() => {
-  // 1. 插件安装或更新时，创建右键菜单
-  chrome.runtime.onInstalled.addListener(() => {
-    chrome.contextMenus.create({
-      id: 'scanQRCode',
-      title: '🔍 识别图中的二维码',
-      contexts: ['image'],
-    });
-  });
+  const iconSizes = [16, 32, 48, 96, 128] as const;
+  const iconPaths = Object.fromEntries(iconSizes.map((size) => [size, `icon/${size}.png`]));
+  let checkedIconData: Record<number, ImageData> | undefined;
+  const iconUpdateIds = new Map<number, number>();
 
-  // 2. 监听右键菜单点击，执行三级解码兜底链
-  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-    if (info.menuItemId !== 'scanQRCode' || !tab?.id || !info.srcUrl) return;
-    const imageUrl = info.srcUrl;
+  const getCheckedIconData = async (): Promise<Record<number, ImageData>> => {
+    if (checkedIconData) return checkedIconData;
 
-    // 图标上显示加载状态
-    chrome.action.setBadgeText({ text: '...', tabId: tab.id });
-    chrome.action.setBadgeBackgroundColor({ color: '#1890ff', tabId: tab.id });
+    const result: Record<number, ImageData> = {};
+    for (const size of iconSizes) {
+      const response = await fetch(chrome.runtime.getURL(`icon/${size}.png`));
+      if (!response.ok) throw new Error(`无法加载扩展图标: ${size}.png`);
 
-    try {
-      const qrCodeText = await decodeQRCodeFromImageUrl(imageUrl);
+      const bitmap = await createImageBitmap(await response.blob());
+      const canvas = new OffscreenCanvas(size, size);
+      const context = canvas.getContext('2d');
+      if (!context) {
+        bitmap.close();
+        throw new Error('无法创建扩展图标绘制上下文');
+      }
 
-      // 成功：注入脚本通知用户并复制到剪贴板
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (text: string) => {
-          navigator.clipboard
-            .writeText(text)
-            .then(() => {
-              alert(`🎉 二维码识别成功！内容已复制到剪贴板：\n\n${text}`);
-            })
-            .catch(() => {
-              alert(`🎉 二维码识别成功！内容如下：\n\n${text}`);
-            });
-        },
-        args: [qrCodeText],
-      });
-    } catch (error) {
-      // 失败：弹窗提示失败原因
-      const message = error instanceof Error ? error.message : String(error);
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (errMessage: string) => {
-          alert(`❌ 识别失败！${errMessage}`);
-        },
-        args: [message],
-      });
-    } finally {
-      // 恢复图标状态
-      chrome.action.setBadgeText({ text: '', tabId: tab.id });
+      context.drawImage(bitmap, 0, 0, size, size);
+      bitmap.close();
+
+      const points = [
+        [size * 0.62, size * 0.68],
+        [size * 0.72, size * 0.77],
+        [size * 0.88, size * 0.56],
+      ] as const;
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+      context.lineWidth = Math.max(1.5, size * 0.12);
+      context.strokeStyle = '#fff';
+      context.beginPath();
+      context.moveTo(...points[0]);
+      context.lineTo(...points[1]);
+      context.lineTo(...points[2]);
+      context.stroke();
+
+      context.lineWidth = Math.max(0.8, size * 0.07);
+      context.strokeStyle = '#52c41a';
+      context.beginPath();
+      context.moveTo(...points[0]);
+      context.lineTo(...points[1]);
+      context.lineTo(...points[2]);
+      context.stroke();
+
+      result[size] = context.getImageData(0, 0, size, size);
     }
-  });
 
-  // 3. Badge 状态管理：根据当前网页域名是否在白名单中显示 ON
+    checkedIconData = result;
+    return result;
+  };
+
+  // 云笈跨域开关放行后，在原图标右下角动态绘制绿色勾号。
   const updateIconStatus = async (tabId: number) => {
+    const updateId = (iconUpdateIds.get(tabId) ?? 0) + 1;
+    iconUpdateIds.set(tabId, updateId);
     try {
       const tab = await chrome.tabs.get(tabId);
-      if (!tab?.url) return;
+      if (iconUpdateIds.get(tabId) !== updateId) return;
+      if (!tab?.url) {
+        await chrome.action.setIcon({ path: iconPaths, tabId });
+        return;
+      }
 
       // 过滤系统特权页面
       if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
         chrome.action.setBadgeText({ text: '', tabId });
+        if (iconUpdateIds.get(tabId) !== updateId) return;
+        await chrome.action.setIcon({ path: iconPaths, tabId });
         return;
       }
 
       // 提取纯域名并检查白名单
       const pureDomain = new URL(tab.url).hostname.toLowerCase();
       const domains = await getDomains();
+      if (iconUpdateIds.get(tabId) !== updateId) return;
+      chrome.action.setBadgeText({ text: '', tabId });
       if (domains.includes(pureDomain)) {
-        chrome.action.setBadgeText({ text: 'ON', tabId });
-        chrome.action.setBadgeBackgroundColor({ color: '#52c41a', tabId });
+        const imageData = await getCheckedIconData();
+        if (iconUpdateIds.get(tabId) !== updateId) return;
+        await chrome.action.setIcon({ imageData, tabId });
       } else {
-        chrome.action.setBadgeText({ text: '', tabId });
+        await chrome.action.setIcon({ path: iconPaths, tabId });
       }
     } catch (e) {
       console.error('更新图标状态失败:', e);
     }
   };
 
+  chrome.tabs.onRemoved.addListener((tabId) => iconUpdateIds.delete(tabId));
   chrome.tabs.onActivated.addListener((activeInfo) => updateIconStatus(activeInfo.tabId));
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status === 'complete') updateIconStatus(tabId);

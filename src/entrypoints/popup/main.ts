@@ -3,13 +3,16 @@ import { getDomains, setDomains } from '../../utils/storage';
 import { updateNetRules } from '../../utils/dnr';
 import {
   addTabToYunji,
-  clearYunjiBinding,
+  BROWSER_CATEGORY_NAME,
   detectYunjiOrigin,
   fetchYunjiIdentity,
   getBrowserYunjiSession,
-  getYunjiState,
+  getYunjiCategories,
+  getYunjiEnvironments,
+  listYunjiInstances,
   loginToYunji,
   patchYunjiSpace,
+  removeYunjiInstance,
   removeYunjiSpace,
   resolveTabName,
   selectYunjiSpace,
@@ -17,13 +20,14 @@ import {
   syncBrowserYunjiSession,
   upsertYunjiSpace,
   YunjiAuthError,
+  type YunjiInstance,
   type YunjiSpace,
 } from '../../utils/yunji';
 
-let currentPureDomain = '';
 let yunjiTab: chrome.tabs.Tab | null = null;
 let spaceFormMode: 'add' | 'relogin' = 'add';
-let editingBaseUrl = false;
+/** 模态表单（空间登录 / 自定义收藏）作用的目标实例 */
+let currentBaseUrl: string | null = null;
 
 // 本次弹窗生命周期内已验证过的会话（按 token 记忆，避免每次刷新都请求）
 const verifiedTokens = new Set<string>();
@@ -31,179 +35,12 @@ const verifyingTokens = new Set<string>();
 
 document.addEventListener('DOMContentLoaded', initPopup);
 
-async function initPopup() {
-  const actionBtn = document.getElementById('actionBtn') as HTMLButtonElement;
-  const openOptions = document.getElementById('openOptions') as HTMLAnchorElement;
-
-  // 提示文案里的内联动作链接（data-action）统一走委托分发
-  document.addEventListener('click', (event) => {
-    const link = (event.target as HTMLElement | null)?.closest?.(
-      'a[data-action]'
-    ) as HTMLAnchorElement | null;
-    if (!link) return;
-    event.preventDefault();
-    if (link.dataset.action === 'relogin') void openSpaceForm('relogin');
-  });
-
-  // 点击跳转到高级管理页
-  openOptions.addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
-  });
-
-  // 1. 获取当前活跃的标签页 URL
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-  // 2. 云笈收藏区块独立初始化，不影响跨域开关
-  if (tab) initYunjiSection(tab);
-  else setYunjiStatus('无法获取当前标签页', 'warn');
-
-  if (!tab?.url) {
-    showSystemPage('无法获取当前标签页');
-    return;
-  }
-
-  // 3. 过滤掉 Chrome 内部特权页面
-  if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-    showSystemPage('Chrome 系统页面（禁止跨域修改）');
-    return;
-  }
-
-  // 4. 智能清洗出纯域名/Host
-  currentPureDomain = extractPureDomain(tab.url);
-  if (!currentPureDomain) {
-    showSystemPage('无法解析的网址格式');
-    return;
-  }
-  document.getElementById('currentDomain')!.textContent = currentPureDomain;
-
-  // 5. 检查当前域名是否已存在，并刷新 UI
-  await checkAndUpdateUI();
-
-  // 5.1 初始化云笈跨域开关状态（控制云笈站点域名）
-  await refreshYunjiCrossToggle();
-
-  // 6. 绑定一键添加/删除按钮事件
-  actionBtn.addEventListener('click', toggleDomainStatus);
-}
-
-// 检查状态并刷新 UI 样式
-async function checkAndUpdateUI() {
-  const statusText = document.getElementById('statusText')!;
-  const actionBtn = document.getElementById('actionBtn') as HTMLButtonElement;
-
-  const domains = await getDomains();
-  const isAdded = domains.includes(currentPureDomain);
-
-  actionBtn.style.display = 'block';
-  if (isAdded) {
-    statusText.textContent = '已开启泛域名跨域放行';
-    statusText.className = 'status active';
-    actionBtn.textContent = '一键移除白名单';
-    actionBtn.className = 'btn-remove';
-  } else {
-    statusText.textContent = '当前域名未开启跨域';
-    statusText.className = 'status inactive';
-    actionBtn.textContent = '一键允许此网站跨域';
-    actionBtn.className = 'btn-add';
-  }
-}
-
-// 按钮点击：切换添加/删除状态
-async function toggleDomainStatus() {
-  const domains = await getDomains();
-  const index = domains.indexOf(currentPureDomain);
-
-  if (index > -1) {
-    domains.splice(index, 1);
-  } else {
-    domains.push(currentPureDomain);
-  }
-
-  await setDomains(domains);
-  // 同步 DNR 规则，保证弹窗与配置页完全一致
-  await updateNetRules(domains);
-  // 通知 background 立刻刷新图标 Badge
-  chrome.runtime.sendMessage({ action: 'refreshBadge' });
-
-  await checkAndUpdateUI();
-  await refreshYunjiCrossToggle();
-}
-
-// 云笈内的跨域开关：控制绑定的云笈站点域名是否跨域放行
-async function refreshYunjiCrossToggle() {
-  const link = $<HTMLAnchorElement>('yunjiCrossToggleLink');
-  const state = await getYunjiState();
-  if (!state.baseUrl) {
-    link.style.display = 'none';
-    return;
-  }
-  link.style.display = '';
-  const pureDomain = extractPureDomain(state.baseUrl);
-  const domains = await getDomains();
-  const enabled = domains.includes(pureDomain);
-  link.classList.toggle('on', enabled);
-  link.textContent = enabled ? '✓ 已放开跨域' : '点击放开跨域';
-}
-
-async function toggleYunjiCross() {
-  const state = await getYunjiState();
-  if (!state.baseUrl) return;
-  const pureDomain = extractPureDomain(state.baseUrl);
-  const domains = await getDomains();
-  const index = domains.indexOf(pureDomain);
-
-  if (index > -1) domains.splice(index, 1);
-  else domains.push(pureDomain);
-
-  await setDomains(domains);
-  await updateNetRules(domains);
-  chrome.runtime.sendMessage({ action: 'refreshBadge' });
-  await refreshYunjiCrossToggle();
-}
-
-// 针对系统特权页面的置灰显示
-function showSystemPage(msg: string) {
-  document.getElementById('currentDomain')!.textContent = 'N/A';
-  const statusText = document.getElementById('statusText')!;
-  statusText.textContent = msg;
-  statusText.className = 'status system';
-  (document.getElementById('actionBtn') as HTMLButtonElement).style.display = 'none';
-}
-
-// ===== 云笈收藏 =====
-
 function $<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/** 渲染提示文本；useHtml 时按 HTML 渲染（调用方保证内容可信） */
-function renderYunjiText(el: HTMLElement, text: string, useHtml: boolean) {
-  if (useHtml) el.innerHTML = text;
-  else el.textContent = text;
-}
-
-function setYunjiStatus(
-  text: string,
-  type: 'ok' | 'warn' | 'info' = 'info',
-  useHtml = false
-) {
-  const el = $('yunjiStatus');
-  renderYunjiText(el, text, useHtml);
-  el.className = `yunji-status ${type}`;
-}
-
-function setYunjiMessage(
-  text: string,
-  type: 'info' | 'success' | 'error' = 'info',
-  useHtml = false
-) {
-  const el = $('yunjiMessage');
-  renderYunjiText(el, text, useHtml);
-  el.className = `yunji-message ${type}`;
 }
 
 function stripProtocol(url: string): string {
@@ -214,12 +51,23 @@ function isHttpUrl(url: string | undefined): boolean {
   return !!url && /^https?:\/\//i.test(url);
 }
 
+/** 任意协议的可收藏网址（chrome://、file://、about: 等内部页面也可） */
+function isCollectableUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function spaceLabel(space: YunjiSpace): string {
   return space.siteName ? `${space.siteName}（${space.username}）` : space.username;
 }
 
 function canCollectCurrentPage(baseUrl: string): boolean {
-  if (!isHttpUrl(yunjiTab?.url)) return false;
+  if (!isCollectableUrl(yunjiTab?.url)) return false;
   try {
     return new URL(yunjiTab!.url!).origin !== baseUrl;
   } catch {
@@ -227,64 +75,45 @@ function canCollectCurrentPage(baseUrl: string): boolean {
   }
 }
 
-async function selectedYunjiSpace(): Promise<YunjiSpace | null> {
-  const state = await getYunjiState();
+function setYunjiMessage(
+  text: string,
+  type: 'info' | 'success' | 'error' = 'info',
+  useHtml = false
+) {
+  const el = $('yunjiMessage');
+  if (useHtml) el.innerHTML = text;
+  else el.textContent = text;
+  el.className = `yunji-message ${type}`;
+}
+
+async function findInstance(baseUrl: string): Promise<YunjiInstance | null> {
+  const instances = await listYunjiInstances();
+  return instances.find((item) => item.baseUrl === baseUrl) ?? null;
+}
+
+function selectedSpaceOf(instance: YunjiInstance): YunjiSpace | null {
   return (
-    state.spaces.find((item) => item.username === state.selectedUsername) ?? null
+    instance.spaces.find((item) => item.username === instance.selectedUsername) ?? null
   );
 }
 
-async function initYunjiSection(tab: chrome.tabs.Tab) {
-  yunjiTab = tab;
+async function initPopup() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab) yunjiTab = tab;
+  else {
+    setYunjiMessage('无法获取当前标签页', 'error');
+  }
 
-  // 地址配置
-  $('yunjiSaveBaseUrlBtn').addEventListener('click', saveYunjiBaseUrl);
+  // 添加实例表单
+  $('yunjiAddInstanceBtn').addEventListener('click', (event) => {
+    event.preventDefault();
+    void openConfigForm();
+  });
+  $('yunjiSaveBaseUrlBtn').addEventListener('click', () => void saveBaseUrl());
   $('yunjiBindBtn').addEventListener('click', () => void bindYunji());
-  $('yunjiCancelBaseUrlBtn').addEventListener('click', async () => {
-    editingBaseUrl = false;
-    ($('yunjiBaseUrlInput') as HTMLInputElement).value = '';
-    await refreshYunjiSection();
-  });
-  $('yunjiChangeBaseUrlIcon').addEventListener('click', (event) => {
-    event.preventDefault();
-    void (async () => {
-      const state = await getYunjiState();
-      editingBaseUrl = true;
-      const input = $<HTMLInputElement>('yunjiBaseUrlInput');
-      input.value = state.baseUrl;
-      await refreshYunjiSection();
-      input.focus();
-      input.select();
-    })();
-  });
+  $('yunjiCancelBaseUrlBtn').addEventListener('click', cancelConfigForm);
   $<HTMLInputElement>('yunjiBaseUrlInput').addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') void saveYunjiBaseUrl();
-  });
-
-  // 空间管理
-  $<HTMLSelectElement>('yunjiSpaceSelect').addEventListener('change', async () => {
-    const username = $<HTMLSelectElement>('yunjiSpaceSelect').value;
-    if (!username) return;
-    await selectYunjiSpace(username);
-    setYunjiMessage('');
-    await refreshYunjiSection();
-  });
-  $('yunjiAddSpaceLink').addEventListener('click', (event) => {
-    event.preventDefault();
-    void openSpaceForm('add');
-  });
-  $('yunjiSyncLink').addEventListener('click', (event) => {
-    event.preventDefault();
-    void syncBrowserLogin();
-  });
-  $('yunjiRemoveSpaceBtn').addEventListener('click', () => void removeSelectedSpace());
-  $('yunjiCrossToggleLink').addEventListener('click', (event) => {
-    event.preventDefault();
-    void toggleYunjiCross();
-  });
-  $('yunjiClearBindIcon').addEventListener('click', (event) => {
-    event.preventDefault();
-    void clearYunjiBindingFromPopup();
+    if (event.key === 'Enter') void saveBaseUrl();
   });
 
   // 空间登录表单
@@ -294,232 +123,394 @@ async function initYunjiSection(tab: chrome.tabs.Tab) {
     if (event.key === 'Enter') void submitSpaceForm();
   });
 
-  // 收藏确认表单
-  $('yunjiStartBtn').addEventListener('click', () => void openCollectForm());
-  $('yunjiCancelBtn').addEventListener('click', () => void closeCollectForm());
+  // 自定义收藏表单
+  $('yunjiCancelBtn').addEventListener('click', closeCollectForm);
   $('yunjiSubmitBtn').addEventListener('click', () => void submitCollectForm());
 
-  setYunjiMessage('');
-  await refreshYunjiSection();
+  // 卡片内动作：事件委托，按 data-action 分发
+  const list = $('yunjiInstanceList');
+  list.addEventListener('click', (event) => {
+    const link = (event.target as HTMLElement | null)?.closest?.(
+      '[data-action]'
+    ) as HTMLElement | null;
+    if (!link) return;
+    event.preventDefault();
+    const card = link.closest('.instance-card') as HTMLElement | null;
+    const baseUrl = card?.dataset.baseUrl ?? '';
+    switch (link.dataset.action) {
+      case 'remove-instance':
+        void removeInstance(baseUrl);
+        break;
+      case 'toggle-cross':
+        void toggleCross(baseUrl);
+        break;
+      case 'add-space':
+        void openSpaceForm('add', baseUrl);
+        break;
+      case 'sync-login':
+        void syncBrowserLogin(baseUrl);
+        break;
+      case 'remove-space':
+        void removeSelectedSpace(baseUrl);
+        break;
+      case 'quick-add':
+        void quickAdd(baseUrl);
+        break;
+      case 'open-collect':
+        void openCollectForm(baseUrl);
+        break;
+      case 'relogin':
+        void openSpaceForm('relogin', baseUrl);
+        break;
+    }
+  });
+  list.addEventListener('change', (event) => {
+    const target = event.target as HTMLSelectElement | null;
+    if (!target?.classList.contains('space-select')) return;
+    const card = target.closest('.instance-card') as HTMLElement | null;
+    const baseUrl = card?.dataset.baseUrl ?? '';
+    const username = target.value;
+    if (!baseUrl || !username) return;
+    void selectSpace(baseUrl, username);
+  });
+
+  await initYunjiView();
 }
 
-async function refreshYunjiSection() {
-  const statusEl = $('yunjiStatus');
-  const state = await getYunjiState();
-  const baseUrl = state.baseUrl;
-
-  const originEl = $<HTMLAnchorElement>('yunjiOrigin');
-  originEl.href = baseUrl ? baseUrl : '#';
-  originEl.textContent = baseUrl ? stripProtocol(baseUrl) : '';
-  originEl.style.pointerEvents = baseUrl ? 'auto' : 'none';
-  $<HTMLDivElement>('yunjiConfigForm').style.display = 'none';
-  $<HTMLDivElement>('yunjiPanel').style.display = 'none';
-  $<HTMLButtonElement>('yunjiStartBtn').style.display = 'none';
-  $('yunjiRemoveSpaceBtn').style.display = 'none';
-  $('yunjiChangeBaseUrlIcon').style.display = 'none';
-  $('yunjiClearBindIcon').style.display = 'none';
-  void refreshYunjiCrossToggle();
-
-  // 未配置地址，或正在更换地址：显示地址表单
-  if (!baseUrl || editingBaseUrl) {
-    $('yunjiLinks').style.display = 'none';
-    const bindBtn = $<HTMLButtonElement>('yunjiBindBtn');
-    const saveBtn = $<HTMLButtonElement>('yunjiSaveBaseUrlBtn');
-    $<HTMLDivElement>('yunjiConfigForm').style.display = 'flex';
-    $<HTMLButtonElement>('yunjiCancelBaseUrlBtn').style.display = editingBaseUrl ? 'block' : 'none';
-
-    if (editingBaseUrl) {
-      bindBtn.style.display = 'none';
-      saveBtn.style.display = 'block';
-      const input = $<HTMLInputElement>('yunjiBaseUrlInput');
-      if (!input.value) input.value = baseUrl;
-      setYunjiStatus('保存后生效，不同地址的空间凭证会分别保留');
-      return;
+/** 打开弹窗时：若当前页是未添加的云笈实例，直接进添加表单；否则显示卡片列表 */
+async function initYunjiView() {
+  if (isHttpUrl(yunjiTab?.url)) {
+    let origin = '';
+    try {
+      origin = new URL(yunjiTab!.url!).origin;
+    } catch {
+      // ignore
     }
-
-    if (!isHttpUrl(yunjiTab?.url)) {
-      bindBtn.style.display = 'none';
-      saveBtn.style.display = 'block';
-      setYunjiStatus('填写云笈地址，或打开云笈站点自动识别');
-      return;
+    const instances = await listYunjiInstances();
+    if (origin && !instances.some((item) => item.baseUrl === origin)) {
+      const detected = await detectYunjiOrigin(yunjiTab!.url!);
+      if (detected && !instances.some((item) => item.baseUrl === detected)) {
+        await openConfigForm(detected);
+        return;
+      }
     }
+  }
+  await renderInstanceCards();
+}
 
-    setYunjiStatus('正在识别云笈站点...');
-    const detected = await detectYunjiOrigin(yunjiTab!.url!);
-    const input = $<HTMLInputElement>('yunjiBaseUrlInput');
-    if (document.activeElement !== input) input.value = detected ?? '';
+// ===== 实例卡片渲染 =====
 
-    const loggedIn = detected ? await getBrowserYunjiSession(detected) : null;
-    if (detected && loggedIn) {
-      bindBtn.style.display = 'block';
-      saveBtn.style.display = 'none';
-      setYunjiStatus('检测到云笈登录，点击「绑定云笈」即可使用', 'ok');
-    } else {
-      bindBtn.style.display = 'none';
-      saveBtn.style.display = 'block';
-      setYunjiStatus(
-        detected
-          ? `识别到云笈站点：${stripProtocol(detected)}，确认后保存`
-          : '填写云笈地址，或打开云笈站点自动识别'
-      );
-    }
-    return;
+function buildInstanceCard(instance: YunjiInstance, domains: string[]): HTMLElement {
+  const card = document.createElement('div');
+  card.className = 'instance-card';
+  card.dataset.baseUrl = instance.baseUrl;
+
+  const selected = selectedSpaceOf(instance);
+
+  // 头部：实例名 + 状态 + 删除
+  const head = document.createElement('div');
+  head.className = 'instance-card-head';
+
+  const title = document.createElement('div');
+  title.className = 'instance-card-title';
+  const nameEl = document.createElement('span');
+  nameEl.className = 'instance-name';
+  nameEl.textContent = instance.siteName;
+  const originEl = document.createElement('a');
+  originEl.className = 'instance-origin';
+  originEl.href = instance.baseUrl;
+  originEl.target = '_blank';
+  originEl.rel = 'noopener';
+  originEl.textContent = stripProtocol(instance.baseUrl);
+  title.append(nameEl, originEl);
+
+  const statusEl = document.createElement('span');
+  statusEl.className = 'instance-status';
+  if (instance.spaces.length === 0) {
+    statusEl.classList.add('warn');
+    statusEl.textContent = '还没有空间';
+  } else if (selected?.expired) {
+    statusEl.classList.add('warn');
+    statusEl.innerHTML =
+      '登录已过期，<a href="#" class="yunji-inline-link" data-action="relogin">重新登录</a>';
+  } else if (selected && verifiedTokens.has(selected.sessionId)) {
+    statusEl.classList.add('ok');
+    statusEl.textContent = '已连接';
+  } else {
+    statusEl.textContent = '检查中...';
   }
 
-  // 已配置地址：空间选择与管理
-  $<HTMLDivElement>('yunjiPanel').style.display = 'block';
-  $('yunjiLinks').style.display = 'flex';
-  $('yunjiChangeBaseUrlIcon').style.display = 'inline';
-  $('yunjiClearBindIcon').style.display = 'inline';
-  const select = $<HTMLSelectElement>('yunjiSpaceSelect');
-  select.innerHTML = '';
+  const removeEl = document.createElement('a');
+  removeEl.href = '#';
+  removeEl.className = 'instance-remove';
+  removeEl.title = '删除此云笈实例及其空间凭证';
+  removeEl.dataset.action = 'remove-instance';
+  removeEl.textContent = '✕';
 
-  if (state.spaces.length === 0) {
+  head.append(title, statusEl, removeEl);
+
+  // 操作链接：跨域开关 / 添加空间 / 同步浏览器登录
+  const links = document.createElement('div');
+  links.className = 'instance-links';
+
+  const crossEl = document.createElement('a');
+  crossEl.href = '#';
+  crossEl.dataset.action = 'toggle-cross';
+  crossEl.title = '开启后，才能正常在浏览器端获取站点图标（放开云笈站点跨域限制）';
+  const crossOn = domains.includes(extractPureDomain(instance.baseUrl));
+  crossEl.classList.toggle('on', crossOn);
+  crossEl.textContent = crossOn ? '✓ 已放开跨域' : '放开跨域';
+
+  const addSpaceEl = document.createElement('a');
+  addSpaceEl.href = '#';
+  addSpaceEl.dataset.action = 'add-space';
+  addSpaceEl.title = '添加空间：输入空间ID和密码登录';
+  addSpaceEl.textContent = '＋ 添加空间';
+
+  const syncEl = document.createElement('a');
+  syncEl.href = '#';
+  syncEl.dataset.action = 'sync-login';
+  syncEl.title = '把浏览器当前登录的云笈会话同步为空间凭证';
+  syncEl.textContent = '⇄ 同步浏览器登录';
+
+  links.append(crossEl, addSpaceEl, syncEl);
+
+  // 空间选择行
+  const spaceRow = document.createElement('div');
+  spaceRow.className = 'instance-space-row';
+  const select = document.createElement('select');
+  select.className = 'space-select';
+  select.setAttribute('aria-label', '保存到空间');
+  if (instance.spaces.length === 0) {
     select.disabled = true;
     const option = document.createElement('option');
     option.value = '';
     option.textContent = '还没有保存的空间';
     select.appendChild(option);
-    setYunjiStatus('还没有保存的空间，请添加或同步浏览器登录', 'warn');
-    return;
-  }
-
-  select.disabled = false;
-  for (const space of state.spaces) {
-    const option = document.createElement('option');
-    option.value = space.username;
-    option.textContent = `${spaceLabel(space)}${space.expired ? '（已过期）' : ''}`;
-    select.appendChild(option);
-  }
-
-  const selected =
-    state.spaces.find((item) => item.username === state.selectedUsername) ??
-    state.spaces[0]!;
-  select.value = selected.username;
-  $('yunjiRemoveSpaceBtn').style.display = 'block';
-
-  if (selected.expired) {
-    setYunjiStatus(
-      '登录已过期，请<a href="#" class="yunji-inline-link" data-action="relogin">重新登录</a>或同步浏览器登录',
-      'warn',
-      true
-    );
-    return;
-  }
-
-  if (verifiedTokens.has(selected.sessionId)) {
-    setYunjiStatus(`已连接：${spaceLabel(selected)}`, 'ok');
-    if (canCollectCurrentPage(baseUrl)) {
-      $<HTMLButtonElement>('yunjiStartBtn').style.display = 'block';
+  } else {
+    for (const space of instance.spaces) {
+      const option = document.createElement('option');
+      option.value = space.username;
+      option.textContent = `${spaceLabel(space)}${space.expired ? '（已过期）' : ''}`;
+      select.appendChild(option);
     }
-    return;
+    select.value = selected?.username ?? '';
   }
+  const removeSpaceBtn = document.createElement('button');
+  removeSpaceBtn.className = 'icon-btn';
+  removeSpaceBtn.title = '删除当前空间凭证';
+  removeSpaceBtn.dataset.action = 'remove-space';
+  removeSpaceBtn.textContent = '×';
+  removeSpaceBtn.style.display = instance.spaces.length > 0 ? 'block' : 'none';
+  spaceRow.append(select, removeSpaceBtn);
 
-  setYunjiStatus('正在检查登录状态...');
-  void verifySelectedSpace();
+  // 收藏行
+  const collectRow = document.createElement('div');
+  collectRow.className = 'instance-collect-row';
+  const quickAddBtn = document.createElement('button');
+  quickAddBtn.className = 'btn-yunji quick-add';
+  quickAddBtn.dataset.action = 'quick-add';
+  quickAddBtn.textContent = '一键添加';
+  const openCollectBtn = document.createElement('button');
+  openCollectBtn.className = 'btn-yunji';
+  openCollectBtn.dataset.action = 'open-collect';
+  openCollectBtn.textContent = '收藏到云笈';
+  collectRow.append(quickAddBtn, openCollectBtn);
+  collectRow.style.display =
+    canCollectCurrentPage(instance.baseUrl) && instance.spaces.length > 0
+      ? 'flex'
+      : 'none';
+
+  card.append(head, links, spaceRow, collectRow);
+  return card;
 }
 
-/** 用 token 校验当前选中空间，失效则标记过期 */
-async function verifySelectedSpace() {
-  const state = await getYunjiState();
-  const space =
-    state.spaces.find((item) => item.username === state.selectedUsername) ?? null;
-  if (!space || !state.baseUrl || space.expired) return;
+async function renderInstanceCards() {
+  const [instances, domains] = await Promise.all([listYunjiInstances(), getDomains()]);
+  const list = $('yunjiInstanceList');
+  list.innerHTML = '';
+  list.style.display = '';
+  for (const instance of instances) {
+    list.appendChild(buildInstanceCard(instance, domains));
+  }
+
+  for (const instance of instances) {
+    const selected = selectedSpaceOf(instance);
+    if (
+      selected &&
+      !selected.expired &&
+      !verifiedTokens.has(selected.sessionId) &&
+      !verifyingTokens.has(selected.sessionId)
+    ) {
+      void verifyInstance(instance.baseUrl, selected);
+    }
+  }
+}
+
+/** 校验某个实例的选中空间；token 失效则标记过期并重渲染 */
+async function verifyInstance(baseUrl: string, space: YunjiSpace) {
+  if (space.expired) return;
   if (verifiedTokens.has(space.sessionId) || verifyingTokens.has(space.sessionId)) return;
 
   verifyingTokens.add(space.sessionId);
   try {
-    const identity = await fetchYunjiIdentity(state.baseUrl, space.sessionId);
+    const identity = await fetchYunjiIdentity(baseUrl, space.sessionId);
     verifiedTokens.add(space.sessionId);
-    await patchYunjiSpace(space.username, {
+    await patchYunjiSpace(baseUrl, space.username, {
       expired: false,
       siteName: identity.siteName || space.siteName,
     });
-    await refreshYunjiSection();
+    // 表单打开时跳过重渲染，避免遮住表单；关闭表单时自然会重渲染
+    if ($('yunjiInstanceList').style.display !== 'none') await renderInstanceCards();
   } catch (error) {
     if (error instanceof YunjiAuthError) {
       verifiedTokens.delete(space.sessionId);
-      await patchYunjiSpace(space.username, { expired: true });
-      setYunjiMessage(
-        '登录已过期，请<a href="#" class="yunji-inline-link" data-action="relogin">重新登录</a>或同步浏览器登录',
-        'error',
-        true
-      );
-      await refreshYunjiSection();
+      await patchYunjiSpace(baseUrl, space.username, { expired: true });
+      setYunjiMessage('登录已过期，请重新登录或同步浏览器登录', 'error');
+      if ($('yunjiInstanceList').style.display !== 'none') await renderInstanceCards();
     } else {
-      setYunjiStatus(errorMessage(error), 'warn');
+      const statusEl = document.querySelector(
+        `.instance-card[data-base-url="${CSS.escape(baseUrl)}"] .instance-status`
+      );
+      if (statusEl) {
+        statusEl.classList.add('warn');
+        statusEl.textContent = errorMessage(error);
+      }
     }
   } finally {
     verifyingTokens.delete(space.sessionId);
   }
 }
 
-async function saveYunjiBaseUrl() {
+// ===== 实例管理 =====
+
+/** 打开添加实例表单；presetOrigin 为已识别到的云笈地址（跳过再次探测） */
+async function openConfigForm(presetOrigin?: string) {
+  $('yunjiInstanceList').style.display = 'none';
+  $<HTMLDivElement>('yunjiConfigForm').style.display = 'flex';
+  $('yunjiMessage').textContent = '';
+  $('yunjiCancelBaseUrlBtn').style.display = 'block';
+  $('yunjiSaveBaseUrlBtn').style.display = 'block';
+  $('yunjiBindBtn').style.display = 'none';
+
+  const input = $<HTMLInputElement>('yunjiBaseUrlInput');
+  input.value = '';
+  if (isHttpUrl(yunjiTab?.url)) {
+    let detected = presetOrigin;
+    if (!detected) {
+      $('yunjiMessage').textContent = '正在识别云笈站点...';
+      detected = await detectYunjiOrigin(yunjiTab!.url!);
+    }
+    input.value = detected ?? '';
+    if (detected && (await getBrowserYunjiSession(detected))) {
+      $('yunjiSaveBaseUrlBtn').style.display = 'none';
+      $('yunjiBindBtn').style.display = 'block';
+      $('yunjiMessage').textContent = '';
+    }
+  }
+  input.focus();
+}
+
+function cancelConfigForm() {
+  $<HTMLDivElement>('yunjiConfigForm').style.display = 'none';
+  void renderInstanceCards();
+}
+
+/** 保存地址：只存实例不登录；已存在的地址切换到对应实例 */
+async function saveBaseUrl() {
+  const input = $<HTMLInputElement>('yunjiBaseUrlInput');
+  try {
+    await setYunjiBaseUrl(input.value);
+    input.value = '';
+    $<HTMLDivElement>('yunjiConfigForm').style.display = 'none';
+    setYunjiMessage('云笈实例已保存', 'success');
+    await renderInstanceCards();
+  } catch (error) {
+    setYunjiMessage(errorMessage(error), 'error');
+  }
+}
+
+/** 一键绑定：保存地址并把浏览器当前登录会话同步为空间凭证 */
+async function bindYunji() {
   const input = $<HTMLInputElement>('yunjiBaseUrlInput');
   try {
     const baseUrl = await setYunjiBaseUrl(input.value);
-    input.value = baseUrl;
-    editingBaseUrl = false;
-    verifiedTokens.clear();
-    setYunjiMessage('云笈地址已保存', 'success');
-    await refreshYunjiSection();
-  } catch (error) {
-    setYunjiMessage(errorMessage(error), 'error');
-  }
-}
-
-async function clearYunjiBindingFromPopup() {
-  if (!confirm('清除云笈绑定？当前地址下的空间凭证将一并删除。')) return;
-  try {
-    await clearYunjiBinding();
-    verifiedTokens.clear();
-    editingBaseUrl = false;
-    ($('yunjiBaseUrlInput') as HTMLInputElement).value = '';
-    setYunjiMessage('已清除云笈绑定', 'success');
-    await refreshYunjiSection();
-  } catch (error) {
-    setYunjiMessage(errorMessage(error), 'error');
-  }
-}
-
-/** 一键绑定：保存识别到的云笈地址，并把浏览器当前登录会话同步为空间凭证 */
-async function bindYunji() {
-  try {
-    const baseUrl = await setYunjiBaseUrl($<HTMLInputElement>('yunjiBaseUrlInput').value);
     const identity = await syncBrowserYunjiSession(baseUrl);
     verifiedTokens.add(identity.sessionId);
-    await upsertYunjiSpace(identity, { select: true });
-    editingBaseUrl = false;
+    await upsertYunjiSpace(baseUrl, identity, { select: true });
+    input.value = '';
+    $<HTMLDivElement>('yunjiConfigForm').style.display = 'none';
     setYunjiMessage(
       `已绑定云笈：${identity.siteName ? `${identity.siteName}（${identity.username}）` : baseUrl}`,
       'success'
     );
-    await refreshYunjiSection();
+    await renderInstanceCards();
   } catch (error) {
     setYunjiMessage(errorMessage(error), 'error');
-    await refreshYunjiSection();
   }
 }
 
+async function removeInstance(baseUrl: string) {
+  if (!confirm(`删除云笈实例 ${stripProtocol(baseUrl)}？其空间凭证与跨域放行将一并移除。`)) {
+    return;
+  }
+  try {
+    const pureDomain = extractPureDomain(baseUrl);
+    const domains = await getDomains();
+    const remaining = domains.filter((domain) => domain !== pureDomain);
+    await setDomains(remaining);
+    await updateNetRules(remaining);
+    await removeYunjiInstance(baseUrl);
+    verifiedTokens.clear();
+    setYunjiMessage('已删除云笈实例', 'success');
+    await renderInstanceCards();
+  } catch (error) {
+    setYunjiMessage(errorMessage(error), 'error');
+  }
+}
+
+async function toggleCross(baseUrl: string) {
+  const pureDomain = extractPureDomain(baseUrl);
+  const domains = await getDomains();
+  const index = domains.indexOf(pureDomain);
+
+  if (index > -1) domains.splice(index, 1);
+  else domains.push(pureDomain);
+
+  await setDomains(domains);
+  await updateNetRules(domains);
+  chrome.runtime.sendMessage({ action: 'refreshBadge' });
+  await renderInstanceCards();
+}
+
+// ===== 空间管理 =====
+
+async function selectSpace(baseUrl: string, username: string) {
+  await selectYunjiSpace(baseUrl, username);
+  await renderInstanceCards();
+}
+
 /** 打开空间登录表单：add=添加空间，relogin=给当前空间重新登录 */
-async function openSpaceForm(mode: 'add' | 'relogin') {
-  const state = await getYunjiState();
-  const selected =
-    state.spaces.find((item) => item.username === state.selectedUsername) ?? null;
+async function openSpaceForm(mode: 'add' | 'relogin', baseUrl: string) {
+  const instance = await findInstance(baseUrl);
+  if (!instance) return;
+  const selected = selectedSpaceOf(instance);
   if (mode === 'relogin' && !selected) return;
 
+  currentBaseUrl = baseUrl;
   spaceFormMode = mode;
   $('yunjiSpaceFormTitle').textContent =
-    mode === 'relogin' && selected ? `重新登录：${spaceLabel(selected)}` : '添加空间';
+    mode === 'relogin' && selected
+      ? `重新登录：${spaceLabel(selected)}`
+      : `添加空间：${stripProtocol(baseUrl)}`;
 
   const usernameInput = $<HTMLInputElement>('yunjiUsername');
   usernameInput.disabled = mode === 'relogin';
   usernameInput.value = mode === 'relogin' && selected ? selected.username : '';
   ($<HTMLInputElement>('yunjiPassword')).value = '';
 
+  $('yunjiInstanceList').style.display = 'none';
   $<HTMLDivElement>('yunjiSpaceForm').style.display = 'flex';
-  $<HTMLButtonElement>('yunjiStartBtn').style.display = 'none';
-  $<HTMLDivElement>('yunjiForm').style.display = 'none';
   setYunjiMessage('');
   (mode === 'relogin' ? $<HTMLInputElement>('yunjiPassword') : usernameInput).focus();
 }
@@ -527,16 +518,15 @@ async function openSpaceForm(mode: 'add' | 'relogin') {
 function closeSpaceForm() {
   $<HTMLDivElement>('yunjiSpaceForm').style.display = 'none';
   $<HTMLInputElement>('yunjiPassword').value = '';
-  void refreshYunjiSection();
+  void renderInstanceCards();
 }
 
 async function submitSpaceForm() {
-  const state = await getYunjiState();
-  if (!state.baseUrl) return;
+  if (!currentBaseUrl) return;
 
   const usernameInput = $<HTMLInputElement>('yunjiUsername');
   const passwordInput = $<HTMLInputElement>('yunjiPassword');
-  const username = spaceFormMode === 'relogin' ? usernameInput.value.trim() : usernameInput.value.trim();
+  const username = usernameInput.value.trim();
   const password = passwordInput.value;
 
   if (!username) {
@@ -555,16 +545,16 @@ async function submitSpaceForm() {
   setYunjiMessage('正在登录...');
 
   try {
-    const identity = await loginToYunji(state.baseUrl, username, password);
+    const identity = await loginToYunji(currentBaseUrl, username, password);
     verifiedTokens.add(identity.sessionId);
-    await upsertYunjiSpace(identity, { select: true });
+    await upsertYunjiSpace(currentBaseUrl, identity, { select: true });
     passwordInput.value = '';
     $<HTMLDivElement>('yunjiSpaceForm').style.display = 'none';
     setYunjiMessage(
       `已保存空间：${identity.siteName ? `${identity.siteName}（${identity.username}）` : identity.username}`,
       'success'
     );
-    await refreshYunjiSection();
+    await renderInstanceCards();
   } catch (error) {
     setYunjiMessage(errorMessage(error), 'error');
   } finally {
@@ -573,44 +563,85 @@ async function submitSpaceForm() {
   }
 }
 
-async function syncBrowserLogin() {
-  const state = await getYunjiState();
-  if (!state.baseUrl) return;
-
+async function syncBrowserLogin(baseUrl: string) {
   setYunjiMessage('正在同步浏览器登录...');
   try {
-    const identity = await syncBrowserYunjiSession(state.baseUrl);
+    const identity = await syncBrowserYunjiSession(baseUrl);
     verifiedTokens.add(identity.sessionId);
-    await upsertYunjiSpace(identity, { select: true });
+    await upsertYunjiSpace(baseUrl, identity, { select: true });
     $<HTMLDivElement>('yunjiSpaceForm').style.display = 'none';
     setYunjiMessage(
       `已同步空间：${identity.siteName ? `${identity.siteName}（${identity.username}）` : identity.username}`,
       'success'
     );
-    await refreshYunjiSection();
+    await renderInstanceCards();
   } catch (error) {
     setYunjiMessage(errorMessage(error), 'error');
   }
 }
 
-async function removeSelectedSpace() {
-  const space = await selectedYunjiSpace();
+async function removeSelectedSpace(baseUrl: string) {
+  const instance = await findInstance(baseUrl);
+  if (!instance) return;
+  const space = selectedSpaceOf(instance);
   if (!space) return;
 
   if (!confirm(`删除空间「${spaceLabel(space)}」的登录凭证？`)) return;
 
   verifiedTokens.delete(space.sessionId);
-  await removeYunjiSpace(space.username);
+  await removeYunjiSpace(baseUrl, space.username);
   setYunjiMessage('已删除空间凭证', 'success');
-  await refreshYunjiSection();
+  await renderInstanceCards();
 }
 
-async function openCollectForm() {
-  const state = await getYunjiState();
-  const selected =
-    state.spaces.find((item) => item.username === state.selectedUsername) ?? null;
+// ===== 收藏 =====
 
-  if (!isHttpUrl(yunjiTab?.url)) {
+async function loadCollectFormOptions(baseUrl: string, sessionId: string) {
+  const categories = await getYunjiCategories(baseUrl, sessionId);
+  const environments = await getYunjiEnvironments(baseUrl, sessionId);
+
+  const categorySelect = $<HTMLSelectElement>('yunjiCategory');
+  categorySelect.innerHTML = '';
+  if (categories.length === 0) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = '（暂无分类，将自动创建「浏览器收藏」）';
+    categorySelect.appendChild(option);
+  }
+  const browserCategory = categories.find((cat) => cat.name === BROWSER_CATEGORY_NAME);
+  for (const cat of categories) {
+    const option = document.createElement('option');
+    option.value = cat.id;
+    option.textContent = cat.name;
+    if (cat.id === browserCategory?.id) option.selected = true;
+    categorySelect.appendChild(option);
+  }
+
+  const envSelect = $<HTMLSelectElement>('yunjiEnvironment');
+  envSelect.innerHTML = '';
+  if (environments.length === 0) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = '自动创建默认环境';
+    envSelect.appendChild(option);
+  } else {
+    const first = environments[0]!;
+    for (const env of environments) {
+      const option = document.createElement('option');
+      option.value = env.id;
+      option.textContent = env.name;
+      if (env.id === first.id) option.selected = true;
+      envSelect.appendChild(option);
+    }
+  }
+}
+
+async function openCollectForm(baseUrl: string) {
+  const instance = await findInstance(baseUrl);
+  if (!instance) return;
+  const selected = selectedSpaceOf(instance);
+
+  if (!isCollectableUrl(yunjiTab?.url)) {
     setYunjiMessage('当前页面不支持收藏', 'error');
     return;
   }
@@ -619,39 +650,101 @@ async function openCollectForm() {
     return;
   }
   if (selected.expired) {
-    setYunjiMessage(
-      '登录已过期，请<a href="#" class="yunji-inline-link" data-action="relogin">重新登录</a>',
-      'error',
-      true
-    );
-    void openSpaceForm('relogin');
+    setYunjiMessage('登录已过期，请先重新登录', 'error');
+    void openSpaceForm('relogin', baseUrl);
     return;
   }
 
+  let optionsError = '';
+  try {
+    await loadCollectFormOptions(baseUrl, selected.sessionId);
+  } catch (error) {
+    if (error instanceof YunjiAuthError) {
+      verifiedTokens.delete(selected.sessionId);
+      await patchYunjiSpace(baseUrl, selected.username, { expired: true });
+      setYunjiMessage('登录已过期，请先重新登录', 'error');
+      void openSpaceForm('relogin', baseUrl);
+      await renderInstanceCards();
+      return;
+    }
+    optionsError = errorMessage(error);
+  }
+
+  currentBaseUrl = baseUrl;
   const nameInput = $<HTMLInputElement>('yunjiName');
   const urlInput = $<HTMLInputElement>('yunjiUrl');
-
   nameInput.value = resolveTabName(yunjiTab!);
   urlInput.value = yunjiTab!.url!;
 
+  $('yunjiInstanceList').style.display = 'none';
   $<HTMLDivElement>('yunjiSpaceForm').style.display = 'none';
   $<HTMLDivElement>('yunjiForm').style.display = 'flex';
-  $<HTMLButtonElement>('yunjiStartBtn').style.display = 'none';
-  setYunjiMessage('');
+  setYunjiMessage(optionsError, optionsError ? 'error' : 'info');
   nameInput.focus();
   nameInput.select();
 }
 
 async function closeCollectForm() {
   $<HTMLDivElement>('yunjiForm').style.display = 'none';
-  await refreshYunjiSection();
+  await renderInstanceCards();
+}
+
+/** 一键添加：用默认分类与环境直接收藏当前页，不打开表单 */
+async function quickAdd(baseUrl: string) {
+  const instance = await findInstance(baseUrl);
+  if (!instance) return;
+  const selected = selectedSpaceOf(instance);
+
+  if (!isCollectableUrl(yunjiTab?.url)) {
+    setYunjiMessage('当前页面不支持收藏', 'error');
+    return;
+  }
+  if (!selected) {
+    setYunjiMessage('请先添加或同步一个空间', 'error');
+    return;
+  }
+  if (selected.expired) {
+    setYunjiMessage('登录已过期，请先重新登录', 'error');
+    void openSpaceForm('relogin', baseUrl);
+    return;
+  }
+
+  const quickBtn = document.querySelector(
+    `.instance-card[data-base-url="${CSS.escape(baseUrl)}"] .quick-add`
+  ) as HTMLButtonElement | null;
+  if (quickBtn) quickBtn.disabled = true;
+  setYunjiMessage('正在添加...');
+
+  try {
+    const result = await addTabToYunji(
+      baseUrl,
+      selected,
+      yunjiTab!,
+      resolveTabName(yunjiTab!),
+      yunjiTab!.url!
+    );
+    setYunjiMessage(`已收藏到云笈：${result.name}（${spaceLabel(selected)}）`, 'success');
+  } catch (error) {
+    if (error instanceof YunjiAuthError) {
+      verifiedTokens.delete(selected.sessionId);
+      await patchYunjiSpace(baseUrl, selected.username, { expired: true });
+      setYunjiMessage('登录已过期，请先重新登录', 'error');
+      void openSpaceForm('relogin', baseUrl);
+      await renderInstanceCards();
+    } else {
+      setYunjiMessage(errorMessage(error), 'error');
+    }
+  } finally {
+    if (quickBtn) quickBtn.disabled = false;
+  }
 }
 
 async function submitCollectForm() {
-  const state = await getYunjiState();
-  const selected =
-    state.spaces.find((item) => item.username === state.selectedUsername) ?? null;
-  if (!selected || !isHttpUrl(yunjiTab?.url)) return;
+  if (!currentBaseUrl) return;
+  const instance = await findInstance(currentBaseUrl);
+  if (!instance) return;
+  const selected = selectedSpaceOf(instance);
+  if (!selected || !isCollectableUrl(yunjiTab?.url)) return;
 
   const nameInput = $<HTMLInputElement>('yunjiName');
   const submitBtn = $<HTMLButtonElement>('yunjiSubmitBtn');
@@ -662,22 +755,27 @@ async function submitCollectForm() {
 
   try {
     const url = $<HTMLInputElement>('yunjiUrl').value.trim();
-    const result = await addTabToYunji(state.baseUrl, selected, yunjiTab!, nameInput.value, url);
+    const categoryId = $<HTMLSelectElement>('yunjiCategory').value || undefined;
+    const environmentId = $<HTMLSelectElement>('yunjiEnvironment').value || undefined;
+    const result = await addTabToYunji(
+      currentBaseUrl,
+      selected,
+      yunjiTab!,
+      nameInput.value,
+      url,
+      { categoryId, environmentId }
+    );
     $<HTMLDivElement>('yunjiForm').style.display = 'none';
     setYunjiMessage(`已收藏到云笈：${result.name}（${spaceLabel(selected)}）`, 'success');
-    await refreshYunjiSection();
+    await renderInstanceCards();
   } catch (error) {
     if (error instanceof YunjiAuthError) {
       verifiedTokens.delete(selected.sessionId);
-      await patchYunjiSpace(selected.username, { expired: true });
+      await patchYunjiSpace(currentBaseUrl, selected.username, { expired: true });
       $<HTMLDivElement>('yunjiForm').style.display = 'none';
-      await openSpaceForm('relogin');
-      setYunjiMessage(
-        '登录已过期，请<a href="#" class="yunji-inline-link" data-action="relogin">重新登录</a>',
-        'error',
-        true
-      );
-      await refreshYunjiSection();
+      setYunjiMessage('登录已过期，请先重新登录', 'error');
+      void openSpaceForm('relogin', currentBaseUrl);
+      await renderInstanceCards();
     } else {
       setYunjiMessage(errorMessage(error), 'error');
     }

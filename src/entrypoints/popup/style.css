@@ -20,36 +20,6 @@ h3 {
   color: #333;
 }
 
-.domain-info {
-  font-size: 12px;
-  color: #666;
-  word-break: break-all;
-  margin-bottom: 12px;
-  background: #f1f1f1;
-  padding: 6px;
-  border-radius: 4px;
-}
-
-.status {
-  font-size: 13px;
-  font-weight: bold;
-  margin-bottom: 15px;
-  display: flex;
-  align-items: center;
-}
-
-.status.active {
-  color: #52c41a;
-}
-
-.status.inactive {
-  color: #faad14;
-}
-
-.status.system {
-  color: #ff4d4f;
-}
-
 button {
   width: 100%;
   padding: 8px;
@@ -60,78 +30,22 @@ button {
   transition: background 0.2s;
 }
 
-.btn-add {
-  background-color: #1890ff;
-  color: white;
-}
-
-.btn-add:hover {
-  background-color: #40a9ff;
-}
-
-.btn-remove {
-  background-color: #ff4d4f;
-  color: white;
-}
-
-.btn-remove:hover {
-  background-color: #ff7875;
-}
-
-.footer {
-  margin-top: 10px;
-  text-align: center;
-}
-
-.footer a {
-  font-size: 11px;
-  color: #1890ff;
-  text-decoration: none;
-}
-
 /* 云笈收藏 */
-.yunji-card {
-  margin-top: 10px;
-}
-
 .yunji-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .yunji-header h3 {
   margin: 0;
 }
 
-.yunji-origin {
-  font-size: 11px;
-  color: #722ed1;
-  word-break: break-all;
-  text-decoration: none;
-}
-
-.yunji-origin:hover {
-  text-decoration: underline;
-}
-
-.yunji-header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.yunji-header-right .yunji-origin {
-  flex: 1;
-  min-width: 0;
-}
-
 .yunji-icon {
   flex-shrink: 0;
   font-size: 12px;
-  color: #722ed1;
+  color: #2ea6fc;
   text-decoration: none;
   cursor: pointer;
 }
@@ -140,28 +54,158 @@ button {
   text-decoration: underline;
 }
 
-.yunji-status {
-  font-size: 12px;
-  color: #666;
+/* 实例卡片列表 */
+.yunji-instance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin-bottom: 10px;
+}
+
+.instance-card {
+  background: #fbfbfb;
+  border: 1px solid #ececec;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.instance-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.instance-card-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.instance-name {
+  display: block;
+  font-size: 13px;
+  font-weight: bold;
+  color: #333;
   word-break: break-all;
 }
 
-.yunji-status.ok {
+.instance-origin {
+  display: block;
+  font-size: 10px;
+  color: #2ea6fc;
+  word-break: break-all;
+  text-decoration: none;
+}
+
+.instance-origin:hover {
+  text-decoration: underline;
+}
+
+.instance-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #666;
+  word-break: break-all;
+}
+
+.instance-status.ok {
   color: #52c41a;
 }
 
-.yunji-status.warn {
+.instance-status.warn {
   color: #faad14;
 }
 
+.instance-remove {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #999;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.instance-remove:hover {
+  color: #ff4d4f;
+}
+
+.instance-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.instance-links a {
+  color: #2ea6fc;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.instance-links a:hover {
+  text-decoration: underline;
+}
+
+.instance-links a.on {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.instance-space-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.instance-space-row select {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+}
+
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0;
+  background-color: #f0f0f0;
+  color: #999;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.icon-btn:hover {
+  background-color: #e5e5e5;
+  color: #666;
+}
+
+.instance-collect-row {
+  display: flex;
+  gap: 8px;
+}
+
+.instance-collect-row button {
+  width: auto;
+  flex: 1;
+}
+
 .btn-yunji {
-  background-color: #722ed1;
+  background-color: #2ea6fc;
   color: white;
 }
 
 .btn-yunji:hover {
-  background-color: #9254de;
+  background-color: #5ab5fd;
 }
 
 .btn-yunji:disabled,
@@ -170,14 +214,12 @@ button {
   cursor: default;
 }
 
-#yunjiStartBtn {
-  margin-top: 26px;
-}
-
 .yunji-form {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  border-top: 1px dashed #e0e0e0;
+  padding-top: 10px;
 }
 
 .yunji-form-title {
@@ -203,14 +245,15 @@ button {
   width: 52px;
 }
 
-.yunji-field > input {
+.yunji-field > input,
+.yunji-field > select {
   flex: 1;
   min-width: 0;
   width: auto;
 }
 
 .yunji-form input,
-.yunji-space-row select {
+.yunji-form select {
   width: 100%;
   box-sizing: border-box;
   padding: 6px 8px;
@@ -219,59 +262,6 @@ button {
   border-radius: 4px;
   background: #fff;
   color: #333;
-}
-
-.yunji-space-row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.yunji-space-row select {
-  flex: 1;
-  min-width: 0;
-}
-
-.icon-btn {
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  padding: 0;
-  background-color: #f0f0f0;
-  color: #999;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: bold;
-  line-height: 1;
-}
-
-.icon-btn:hover {
-  background-color: #e5e5e5;
-  color: #666;
-}
-
-.yunji-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 10px;
-  font-size: 12px;
-}
-
-.yunji-links a {
-  color: #722ed1;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.yunji-links a:hover {
-  text-decoration: underline;
-}
-
-.yunji-links a.on {
-  font-weight: bold;
-  text-decoration: underline;
 }
 
 .yunji-hint {
@@ -317,13 +307,13 @@ button {
 }
 
 .yunji-inline-link {
-  color: #722ed1;
+  color: #2ea6fc;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .yunji-inline-link:hover {
-  color: #9254de;
+  color: #5ab5fd;
 }
 
 /* 深色模式：高对比度配色 */
@@ -342,73 +332,50 @@ button {
     color: #f0f0f0;
   }
 
-  .domain-info {
-    color: #d0d0d0;
-    background: #333333;
-  }
-
-  .status.active {
-    color: #7fe08a;
-  }
-
-  .status.inactive {
-    color: #ffc53d;
-  }
-
-  .status.system {
-    color: #ff7a6e;
-  }
-
-  .btn-add {
-    background-color: #1890ff;
-  }
-
-  .btn-add:hover {
-    background-color: #40a9ff;
-  }
-
-  .btn-remove {
-    background-color: #ff4d4f;
-  }
-
-  .btn-remove:hover {
-    background-color: #ff7875;
-  }
-
-  .footer a {
-    color: #40a9ff;
-  }
-
-  .yunji-status {
-    color: #d0d0d0;
-  }
-
-  .yunji-status.ok {
-    color: #7fe08a;
-  }
-
-  .yunji-status.warn {
-    color: #ffc53d;
-  }
-
-  .yunji-origin {
-    color: #b37feb;
-  }
-
   .yunji-icon {
-    color: #b37feb;
+    color: #6ec4ff;
   }
 
-  .yunji-form-title {
+  .instance-card {
+    background: #2f2f2f;
+    border-color: #3d3d3d;
+  }
+
+  .instance-name {
     color: #f0f0f0;
   }
 
-  .yunji-label {
+  .instance-origin {
+    color: #6ec4ff;
+  }
+
+  .instance-status {
     color: #d0d0d0;
   }
 
+  .instance-status.ok {
+    color: #7fe08a;
+  }
+
+  .instance-status.warn {
+    color: #ffc53d;
+  }
+
+  .instance-remove {
+    color: #8c8c8c;
+  }
+
+  .instance-remove:hover {
+    color: #ff7a6e;
+  }
+
+  .instance-links a {
+    color: #6ec4ff;
+  }
+
+  .instance-space-row select,
   .yunji-form input,
-  .yunji-space-row select {
+  .yunji-form select {
     border-color: #555;
     background: #333;
     color: #f0f0f0;
@@ -424,8 +391,16 @@ button {
     color: #d0d0d0;
   }
 
-  .yunji-links a {
-    color: #b37feb;
+  .yunji-form {
+    border-top-color: #3d3d3d;
+  }
+
+  .yunji-form-title {
+    color: #f0f0f0;
+  }
+
+  .yunji-label {
+    color: #d0d0d0;
   }
 
   .yunji-hint {
@@ -454,10 +429,10 @@ button {
   }
 
   .yunji-inline-link {
-    color: #b37feb;
+    color: #6ec4ff;
   }
 
   .yunji-inline-link:hover {
-    color: #d3adf7;
+    color: #9bd8ff;
   }
 }
