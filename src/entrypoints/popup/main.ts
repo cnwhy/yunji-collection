@@ -177,25 +177,28 @@ async function initPopup() {
   await initYunjiView();
 }
 
-/** 打开弹窗时：若当前页是未添加的云笈实例，直接进添加表单；否则显示卡片列表 */
+/** 打开弹窗时：卡片先渲染避免首屏空白，同时后台探测当前页是否为未添加的云笈实例，命中再切到添加表单 */
 async function initYunjiView() {
-  if (isHttpUrl(yunjiTab?.url)) {
-    let origin = '';
-    try {
-      origin = new URL(yunjiTab!.url!).origin;
-    } catch {
-      // ignore
-    }
-    const instances = await listYunjiInstances();
-    if (origin && !instances.some((item) => item.baseUrl === origin)) {
-      const detected = await detectYunjiOrigin(yunjiTab!.url!);
-      if (detected && !instances.some((item) => item.baseUrl === detected)) {
-        await openConfigForm(detected);
-        return;
-      }
-    }
-  }
+  const detectedPromise = isHttpUrl(yunjiTab?.url)
+    ? (async () => {
+        let origin = '';
+        try {
+          origin = new URL(yunjiTab!.url!).origin;
+        } catch {
+          return null;
+        }
+        const instances = await listYunjiInstances();
+        if (instances.some((item) => item.baseUrl === origin)) return null;
+        const detected = await detectYunjiOrigin(yunjiTab!.url!);
+        if (detected && !instances.some((item) => item.baseUrl === detected)) return detected;
+        return null;
+      })()
+    : Promise.resolve(null);
+
   await renderInstanceCards();
+
+  const detected = await detectedPromise;
+  if (detected) await openConfigForm(detected);
 }
 
 // ===== 实例卡片渲染 =====
@@ -396,7 +399,7 @@ async function openConfigForm(presetOrigin?: string) {
   const input = $<HTMLInputElement>('yunjiBaseUrlInput');
   input.value = '';
   if (isHttpUrl(yunjiTab?.url)) {
-    let detected = presetOrigin;
+    let detected = presetOrigin ?? null;
     if (!detected) {
       $('yunjiMessage').textContent = '正在识别云笈站点...';
       detected = await detectYunjiOrigin(yunjiTab!.url!);

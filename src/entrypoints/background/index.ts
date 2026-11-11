@@ -88,6 +88,8 @@ export default defineBackground(() => {
         await chrome.action.setIcon({ path: iconPaths, tabId });
       }
     } catch (e) {
+      // 标签页在异步更新期间被关闭属正常情况，无需告警
+      if (e instanceof Error && /No tab with id/.test(e.message)) return;
       console.error('更新图标状态失败:', e);
     }
   };

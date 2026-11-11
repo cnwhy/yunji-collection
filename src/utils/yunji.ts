@@ -272,8 +272,9 @@ export async function detectYunjiOrigin(pageUrl: string): Promise<string | null>
     return null;
   }
 
+  // 云笈部署在 Serverless 时冷启动可能达 5s，探测只发生一次，放宽到 8s
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 2500);
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const response = await fetch(`${origin}/api/setup/status`, {
       credentials: 'omit',
