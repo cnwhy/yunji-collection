@@ -1,6 +1,6 @@
 # 云笈收藏助手
 
-把当前网页一键收藏到[云笈](https://github.com/cnwhy/links)导航站的浏览器扩展。
+把当前网页一键收藏到[云笈](https://github.com/cnwhy/yunji)导航站的浏览器扩展。
 
 ## 功能
 
@@ -13,7 +13,7 @@
 
 ## 下载
 
-在 [Releases](https://github.com/cnwhy/browserPlugin/releases) 页面下载最新版：
+在 [Releases](https://github.com/cnwhy/yunji-collection/releases) 页面下载最新版：
 
 - `yunji-collection-0.1.0-chrome.zip`：常规安装（推荐）
 - `yunji-collection-0.1.0-chrome.crx`：企业/内部部署
